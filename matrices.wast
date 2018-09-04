@@ -1,19 +1,51 @@
 (module
     (import "dummy" "memory" (memory 1))
-    ;; Transpose f32 2x2 matrix sequentially (contiguous layout) in place
-    ;; Load four f32 numbers from location 0
+    ;; Scalar transpose a square f32 matrix (contiguous layout) in place
+    ;;
+    ;; @param $ptr source and destination -- byte index
+    ;; @param size (width) of the matrix in elements
     (func
-        (export  "transpose_f32x2x2")
+        (export  "transpose_f32")
+        (param $ptr i32)
+        (param $sz i32)
+        (local $i i32)
+        (local $j i32)
+        (local $src_ptr i32)
+        (local $dst_ptr i32)
 
-        i32.const 0
-        i32.const 0
-        f32.load offset=4 align=4
-        i32.const 0
-        i32.const 0
-        f32.load offset=8 align=4
+        (set_local $i (i32.const 0))
+        (set_local $j (i32.const 0))
+        (set_local $src_ptr (get_local $ptr))
 
-        f32.store offset=4 align=4
-        f32.store offset=8 align=4
+        (block $outer
+            (block $outer_top
+                (br_if $outer (i32.eq (get_local $j) (get_local $sz)))
+                (set_local $dst_ptr (i32.add (get_local $ptr) (i32.mul (get_local $j) (i32.const 4)))) ;; Start ptr is row index, TODO optimize mul
+                (block $inner
+                    (loop $inner_top
+                        (br_if $inner (i32.eq (get_local $i) (get_local $sz)))
+
+                        ;; TODO don't swap when i == j
+
+                        get_local $dst_ptr
+                        get_local $src_ptr
+                        f32.load offset=0 align=4
+                        get_local $src_ptr
+                        get_local $dst_ptr
+                        f32.load offset=0 align=4
+                        f32.store offset=0 align=4
+                        f32.store offset=0 align=4
+
+                        (set_local $dst_ptr (i32.add (get_local $dst_ptr) (i32.mul (i32.const 4) (get_local $sz)))) ;; TODO optimize mul
+                        (set_local $src_ptr (i32.add (get_local $src_ptr) (i32.const 4)))
+                        (set_local $i (i32.add (get_local $i) (i32.const 1)))
+                        (br $inner_top)
+                    )
+                )
+                (set_local $j (i32.add (get_local $j) (i32.const 1)))
+                (br $outer_top)
+            )
+        )
     )
     ;; Vector transpose f32 2x2 matrix (contiguous layout) in place
     ;; Load a vector of four f32 numbers from location 0
@@ -27,74 +59,6 @@
         v8x16.shuffle 0x03020100 0x0B0A0908 0x07060504 0x0F0E0D0C
         ;;v8x16.shuffle 0x03020100 0x07060504 0x0B0A0908 0x0F0E0D0C
         v128.store offset=0 align=4
-    )
-    ;; Transpose f32 4x4 matrix sequentially (contiguous layout) in place
-    ;; Load sixteen f32 numbers from location indicated by first paramter and
-    ;; store transposed matrix at location indicated by second parameter
-    (func
-        (export  "transpose_f32x4x4")
-        (param i32 i32)
-
-        ;; (1, 2, 3)
-        get_local 1
-        get_local 0
-        f32.load offset=4 align=4
-        get_local 1
-        get_local 0
-        f32.load offset=8 align=4
-        get_local 1
-        get_local 0
-        f32.load offset=12 align=4
-        ;; (4, 8, 12)
-        get_local 1
-        get_local 0
-        f32.load offset=16 align=4
-        get_local 1
-        get_local 0
-        f32.load offset=32 align=4
-        get_local 1
-        get_local 0
-        f32.load offset=48 align=4
-        ;; (6, 7)
-        get_local 1
-        get_local 0
-        f32.load offset=24 align=4
-        get_local 1
-        get_local 0
-        f32.load offset=28 align=4
-        ;; (9, 13)
-        get_local 1
-        get_local 0
-        f32.load offset=36 align=4
-        get_local 1
-        get_local 0
-        f32.load offset=52 align=4
-        ;; (11) and (14)
-        get_local 1
-        get_local 0
-        f32.load offset=44 align=4
-        get_local 1
-        get_local 0
-        f32.load offset=56 align=4
-
-        ;; Store in reverse order
-        ;; (14) and (11)
-        f32.store offset=56 align=4
-        f32.store offset=44 align=4
-        ;; (7, 6)
-        f32.store offset=28 align=4
-        f32.store offset=24 align=4
-        ;; (13, 9)
-        f32.store offset=52 align=4
-        f32.store offset=36 align=4
-        ;; (3, 2, 1)
-        f32.store offset=12 align=4
-        f32.store offset=8 align=4
-        f32.store offset=4 align=4
-        ;; (12, 8, 4)
-        f32.store offset=48 align=4
-        f32.store offset=32 align=4
-        f32.store offset=16 align=4
     )
     ;; Vector transpose f32 4x4 matrix (contiguous layout) in place
     ;; Load four f32x4 vectors from location indicated by first paramter and
@@ -158,14 +122,4 @@
         i64.store offset=24 align=4
         i64.store offset=48 align=4
     )
-    ;; Multiply two f32 4x4 matrices sequentially (contiguous layout)
-    ;; First operand is at location 0, second -- at location 64 and result is
-    ;; at location 128
-    (func
-        (export  "mul_f32x4x4")
-        i32.const 64
-        i32.const 192
-        call 2 ;; TODO explicit indices in function definitions
-    )
-    ;; f32x4.mul vec1 vec2
 )

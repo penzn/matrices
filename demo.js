@@ -19,24 +19,25 @@ const module = new WebAssembly.Module(readbuffer('matrices.wasm'));
 const instance = new WebAssembly.Instance(module, { "dummy" : { "memory" : memObj } }).exports;
 let data = new Float32Array (memObj.buffer);
 
-for (let i = 0; i < 4; ++i) {
+for (let i = 0; i < 16; ++i) {
   data[i] = i + 1.5;
 }
 
-//print_4(data);
+print_4(data);
 
 print("==== 2x2 f32 WASM scalar transpose ====");
 
 var tStart = Date.now();
 for (let i = 0; i < N; ++i) {
-  instance["transpose_f32x2x2"]();
-  instance["transpose_f32x2x2"]();
+  instance["transpose_f32"](0, 2);
+  instance["transpose_f32"](0, 2);
 }
 var tEnd = Date.now();
 print((2 * N) + " transpositions took " + (tEnd - tStart) + " milliseconds.");
 
-//print_4(data);
+print_4(data);
 
+/*
 print("==== 2x2 f32 WASM vector transpose ====");
 
 var tStart = Date.now();
@@ -47,7 +48,7 @@ for (let i = 0; i < N; ++i) {
 var tEnd = Date.now();
 print((2 * N) + " transpositions took " + (tEnd - tStart) + " milliseconds.");
 
-//print_4(data);
+print_4(data);
 
 print("\n");
 
@@ -55,20 +56,22 @@ for (let i = 0; i < 16; ++i) {
   data[i] = i + 1.5;
 }
 
+*/
 print_16(data);
 
 print("==== 4x4 f32 WASM scalar transpose ====");
 
 var tStart = Date.now();
 for (let i = 0; i < N; ++i) {
-  instance["transpose_f32x4x4"](0, 0);
-  instance["transpose_f32x4x4"](0, 0);
+  instance["transpose_f32"](0, 4);
+  instance["transpose_f32"](0, 4);
 }
 var tEnd = Date.now();
 print((2 * N) + " transpositions took " + (tEnd - tStart) + " milliseconds.");
 
 print_16(data);
 
+/*
 print("==== 4x4 f32 WASM vector transpose ====");
 
 var tStart = Date.now();
@@ -80,4 +83,4 @@ var tEnd = Date.now();
 print((2 * N) + " transpositions took " + (tEnd - tStart) + " milliseconds.");
 
 print_16(data);
-
+*/
