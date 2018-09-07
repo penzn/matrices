@@ -27,6 +27,14 @@ function print_16(arr) {
   print(arr[12] + " " + arr[13] + " " + arr[14] + " " + arr[15]);
 }
 
+// Calculate GFLOPS for running time (ms) and matrix size
+function getGFLOPS(ms, N) {
+  // For every scalar there is a a multiplication and an addition, and there
+  // are N^3 visits of scalars
+  let ops = N*N*N*2;
+  return Math.round(ops / t / 10000) / 100;
+}
+
 const N = 3000; // Matrix size
 let pages = Math.ceil(3 * N * N / 16384.0);
 print("Need " + pages + " pages");
@@ -35,6 +43,7 @@ const module = new WebAssembly.Module(readbuffer('matrices.wasm'));
 const instance = new WebAssembly.Instance(module, { "dummy" : { "memory" : memObj } }).exports;
 let data = new Float32Array (memObj.buffer);
 
+/*
 data[0] = 0;
 data[1] = 1;
 data[2] = 2;
@@ -45,6 +54,9 @@ data[6] = 4;
 data[7] = 5;
 data[8] = 6;
 data[9] = 7;
+
+print(instance["dot_f32_simd"](0, 20, 5));
+*/
 
 print("Matrix size is " + N);
 
@@ -59,10 +71,13 @@ instance["transpose_f32"](4*N*N, N); // Second argument to column-major order
 var tStart = Date.now();
 instance["multiply_f32"](0, 4*N*N, 8*N*N, N);
 var tEnd = Date.now();
-print("Scalar multiplication took " + (tEnd - tStart) + " milliseconds.");
+let t = tEnd - tStart;
+print("Scalar multiplication took " + t + " milliseconds at " + getGFLOPS(t, N) + " SP GFLOPS.");
 
 var tStart = Date.now();
 instance["multiply_f32_simd"](0, 4*N*N, 8*N*N, N);
 var tEnd = Date.now();
-print("SIMD multiplication took " + (tEnd - tStart) + " milliseconds.");
+t = tEnd - tStart;
+
+print("SIMD multiplication took " + t + " milliseconds at " + getGFLOPS(t, N) + " SP GFLOPS.");
 

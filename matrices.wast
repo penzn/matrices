@@ -183,7 +183,7 @@
        (local $sum f32)
        (local $v v128)
 
-       (set_local $sum (f32.const 0))
+       (set_local $v (v128.const i32 0 0 0 0))
        (set_local $ptr1 (get_local $src1))
        (set_local $ptr2 (get_local $src2))
 
@@ -195,28 +195,29 @@
                (br_if $loop1 (i32.eq (get_local $i) (get_local $N)))
 
                (set_local $v
-                   (f32x4.mul
-                       (v128.load align=4 (get_local $ptr1))
-                       (v128.load align=4 (get_local $ptr2))
-                   )
-               )
-
-               ;; TODO
-               (set_local $sum
-                   (f32.add (get_local $sum)
-                       (f32.add (f32x4.extract_lane 0 (get_local $v))
-                           (f32.add (f32x4.extract_lane 1 (get_local $v))
-                               (f32.add (f32x4.extract_lane 2 (get_local $v))
-                                   (f32x4.extract_lane 3 (get_local $v))
-                               )
-                           )
+                   (f32x4.add
+                       (get_local $v)
+                       (f32x4.mul
+                           (v128.load align=4 (get_local $ptr1))
+                           (v128.load align=4 (get_local $ptr2))
                        )
                    )
                )
+
                (set_local $ptr1 (i32.add (get_local $ptr1) (i32.const 16)))
                (set_local $ptr2 (i32.add (get_local $ptr2) (i32.const 16)))
                (set_local $i (i32.add (get_local $i) (i32.const 1)))
                (br $loop1_top)
+           )
+       )
+
+       (set_local $sum
+           (f32.add (f32x4.extract_lane 0 (get_local $v))
+               (f32.add (f32x4.extract_lane 1 (get_local $v))
+                   (f32.add (f32x4.extract_lane 2 (get_local $v))
+                       (f32x4.extract_lane 3 (get_local $v))
+                   )
+               )
            )
        )
 
