@@ -43,21 +43,6 @@ const module = new WebAssembly.Module(readbuffer('matrices.wasm'));
 const instance = new WebAssembly.Instance(module, { "dummy" : { "memory" : memObj } }).exports;
 let data = new Float32Array (memObj.buffer);
 
-/*
-data[0] = 0;
-data[1] = 1;
-data[2] = 2;
-data[3] = 1;
-data[4] = 2;
-data[5] = 3;
-data[6] = 4;
-data[7] = 5;
-data[8] = 6;
-data[9] = 7;
-
-print(instance["dot_f32_simd"](0, 20, 5));
-*/
-
 print("Matrix size is " + N);
 
 init(data, N);
@@ -72,12 +57,12 @@ var tStart = Date.now();
 instance["multiply_f32"](0, 4*N*N, 8*N*N, N);
 var tEnd = Date.now();
 let t = tEnd - tStart;
-print("Scalar multiplication took " + t + " milliseconds at " + getGFLOPS(t, N) + " SP GFLOPS.");
+print("Scalar multiplication took " + t + " ms at " + getGFLOPS(t, N) + " SP GFLOPS.");
 
 var tStart = Date.now();
 instance["multiply_f32_simd"](0, 4*N*N, 8*N*N, N);
 var tEnd = Date.now();
 t = tEnd - tStart;
 
-print("SIMD multiplication took " + t + " milliseconds at " + getGFLOPS(t, N) + " SP GFLOPS.");
+print("SIMD multiplication took " + t + " ms at " + getGFLOPS(t, N) + " SP GFLOPS.");
 
