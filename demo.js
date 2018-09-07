@@ -27,35 +27,31 @@ function print_16(arr) {
   print(arr[12] + " " + arr[13] + " " + arr[14] + " " + arr[15]);
 }
 
-const N = 20000; // Matrix size
-let pages = Math.ceil(N * N / 16384.0);
+const N = 3000; // Matrix size
+let pages = Math.ceil(3 * N * N / 16384.0);
 print("Need " + pages + " pages");
 const memObj = new WebAssembly.Memory({initial:pages});
 const module = new WebAssembly.Module(readbuffer('matrices.wasm'));
 const instance = new WebAssembly.Instance(module, { "dummy" : { "memory" : memObj } }).exports;
 let data = new Float32Array (memObj.buffer);
 
-data[0] = 1;
-data[1] = 2;
-data[2] = 3;
-data[3] = 4;
-data[4] = 2;
-data[5] = 0;
-data[6] = 1;
-data[7] = 2;
-
-instance["transpose_f32"](16, 2);
-instance["multiply_f32"](0, 16, 32, 2);
-
-print_4(data, 0);
-print_4(data, 4);
-print_4(data, 8);
-
-/*
 print("Matrix size is " + N);
 
 init(data, N);
+// A*A
+for (let i = 0; i < (N * N); ++i) {
+  data[N * N + i] = data[i];
+}
 
+instance["transpose_f32"](4*N*N, N); // Second argument to column-major order
+
+var tStart = Date.now();
+instance["multiply_f32"](0, 4*N*N, 8*N*N, N);
+var tEnd = Date.now();
+print("Multiplication took " + (tEnd - tStart) + " milliseconds.");
+
+// This is too fast for any size acceptable for multiplication
+/*
 var tStart = Date.now();
 instance["transpose_f32"](0, N);
 instance["transpose_f32"](0, N);
