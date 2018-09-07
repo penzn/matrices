@@ -163,6 +163,161 @@
         )
     )
 
+    ;; Dot product of two vectors, SIMD version
+    ;;
+    ;; @param $src1 memory location of the first vector
+    ;; @param $src2 memory location of the second vector (transposed)
+    ;; @param $sz vector length (# of elements)
+    ;; @return dot product value
+    (func $d_vec
+       (export "dot_f32_simd")
+       (param $src1 i32)
+       (param $src2 i32)
+       (param $sz i32)
+       (result f32)
+
+       (local $i i32)
+       (local $ptr1 i32)
+       (local $ptr2 i32)
+       (local $N i32)
+       (local $sum f32)
+       (local $v v128)
+
+       (set_local $sum (f32.const 0))
+       (set_local $ptr1 (get_local $src1))
+       (set_local $ptr2 (get_local $src2))
+
+       (set_local $i (i32.const 0))
+       (set_local $N (i32.div_u (get_local $sz) (i32.const 4)))
+
+       (block $loop1
+           (loop $loop1_top
+               (br_if $loop1 (i32.eq (get_local $i) (get_local $N)))
+
+               (set_local $v
+                   (f32x4.mul
+                       (v128.load align=4 (get_local $ptr1))
+                       (v128.load align=4 (get_local $ptr2))
+                   )
+               )
+
+               ;; TODO
+               (set_local $sum
+                   (f32.add (get_local $sum)
+                       (f32.add (f32x4.extract_lane 0 (get_local $v))
+                           (f32.add (f32x4.extract_lane 1 (get_local $v))
+                               (f32.add (f32x4.extract_lane 2 (get_local $v))
+                                   (f32x4.extract_lane 3 (get_local $v))
+                               )
+                           )
+                       )
+                   )
+               )
+               (set_local $ptr1 (i32.add (get_local $ptr1) (i32.const 16)))
+               (set_local $ptr2 (i32.add (get_local $ptr2) (i32.const 16)))
+               (set_local $i (i32.add (get_local $i) (i32.const 1)))
+               (br $loop1_top)
+           )
+       )
+
+       (set_local $i (i32.const 0))
+       (set_local $N (i32.rem_u (get_local $sz) (i32.const 4)))
+
+       (block $loop2
+           (loop $loop2_top
+               (br_if $loop2 (i32.eq (get_local $i) (get_local $N)))
+
+               (set_local $sum
+                   (f32.add (get_local $sum)
+                       (f32.mul (f32.load (get_local $ptr1)) (f32.load (get_local $ptr2)))
+                   )
+               )
+
+               (set_local $ptr1 (i32.add (get_local $ptr1) (i32.const 4)))
+               (set_local $ptr2 (i32.add (get_local $ptr2) (i32.const 4)))
+               (set_local $i (i32.add (get_local $i) (i32.const 1)))
+               (br $loop2_top)
+           )
+       )
+
+       get_local $sum
+    )
+
+    ;; Multiply vector and a square matrix, SIMD version
+    ;;
+    ;; @param $v vector memory location
+    ;; @param $m memory location of transposed matrix
+    ;; @param $dst memory location for the result
+    ;; @param $sz size of both
+    (func $vm_vec
+        (export "vmmul_f32_simd")
+        (param $v i32)
+        (param $m i32)
+        (param $dst i32)
+        (param $sz i32)
+
+        (local $i i32)
+        (local $mptr i32)
+        (local $dptr i32)
+        (local $rowlen i32)
+
+        (set_local $i (i32.const 0))
+        (set_local $mptr (get_local $m))
+        (set_local $dptr (get_local $dst))
+        (set_local $rowlen (i32.mul (get_local $sz) (i32.const 4)))
+
+        (block $loop
+            (loop $loop_top
+                (br_if $loop (i32.eq (get_local $i) (get_local $sz)))
+
+                (f32.store (get_local $dptr) (call $d_vec (get_local $v) (get_local $mptr) (get_local $sz)))
+
+                (set_local $mptr (i32.add (get_local $mptr) (get_local $rowlen)))
+                (set_local $dptr (i32.add (get_local $dptr) (i32.const 4)))
+                (set_local $i (i32.add (get_local $i) (i32.const 1)))
+                (br $loop_top)
+            )
+        )
+    )
+
+    ;; Vector multiplication of square f32 matrices (contiguous layout)
+    ;;
+    ;; @param $src1 location (byte index) of the first operand
+    ;; @param $src2 location of the second operand -- transposed
+    ;; @param $dst location where to write the result
+    ;; @param $sz size of the matrix (number of elements in a row)
+    (func
+        (export "multiply_f32_simd")
+        (param $src1 i32)
+        (param $src2 i32)
+        (param $dst i32)
+        (param $sz i32)
+
+        (local $i i32)
+        (local $off i32)
+        (local $rowlen i32)
+
+        (set_local $i (i32.const 0))
+        (set_local $off (i32.const 0))
+        (set_local $rowlen (i32.mul (get_local $sz) (i32.const 4)))
+
+        (block $loop
+            (loop $loop_top
+                (br_if $loop (i32.eq (get_local $i) (get_local $sz)))
+
+                (call $vm_vec
+                    (i32.add (get_local $src1) (get_local $off))
+                    (get_local $src2)
+                    (i32.add (get_local $dst) (get_local $off)) (get_local $sz)
+                )
+
+                (set_local $off (i32.add (get_local $off) (get_local $rowlen)))
+                (set_local $i (i32.add (get_local $i) (i32.const 1)))
+                (br $loop_top)
+            )
+        )
+    )
+
     ;; Vector transpose f32 2x2 matrix (contiguous layout) in place
     ;; Load a vector of four f32 numbers from location 0
     (func

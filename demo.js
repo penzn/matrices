@@ -35,6 +35,17 @@ const module = new WebAssembly.Module(readbuffer('matrices.wasm'));
 const instance = new WebAssembly.Instance(module, { "dummy" : { "memory" : memObj } }).exports;
 let data = new Float32Array (memObj.buffer);
 
+data[0] = 0;
+data[1] = 1;
+data[2] = 2;
+data[3] = 1;
+data[4] = 2;
+data[5] = 3;
+data[6] = 4;
+data[7] = 5;
+data[8] = 6;
+data[9] = 7;
+
 print("Matrix size is " + N);
 
 init(data, N);
@@ -48,19 +59,10 @@ instance["transpose_f32"](4*N*N, N); // Second argument to column-major order
 var tStart = Date.now();
 instance["multiply_f32"](0, 4*N*N, 8*N*N, N);
 var tEnd = Date.now();
-print("Multiplication took " + (tEnd - tStart) + " milliseconds.");
+print("Scalar multiplication took " + (tEnd - tStart) + " milliseconds.");
 
-// This is too fast for any size acceptable for multiplication
-/*
 var tStart = Date.now();
-instance["transpose_f32"](0, N);
-instance["transpose_f32"](0, N);
+instance["multiply_f32_simd"](0, 4*N*N, 8*N*N, N);
 var tEnd = Date.now();
-print("Two transpositions took " + (tEnd - tStart) + " milliseconds.");
+print("SIMD multiplication took " + (tEnd - tStart) + " milliseconds.");
 
-if (verify(data, N)) {
-  print("Verification passed");
-} else {
-  print("Verification failed");
-}
-*/
