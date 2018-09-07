@@ -7,7 +7,6 @@ function init(arr, size) {
 function verify(arr, size) {
   for (let i = 0; i < (size*size); ++i) {
     if (arr[i] !== i % size) {
-      print("Index: " + i + ", value: " + arr[i]);
       return false;
     }
   }
@@ -36,6 +35,23 @@ const module = new WebAssembly.Module(readbuffer('matrices.wasm'));
 const instance = new WebAssembly.Instance(module, { "dummy" : { "memory" : memObj } }).exports;
 let data = new Float32Array (memObj.buffer);
 
+data[0] = 1;
+data[1] = 2;
+data[2] = 3;
+data[3] = 4;
+data[4] = 2;
+data[5] = 0;
+data[6] = 1;
+data[7] = 2;
+
+instance["transpose_f32"](16, 2);
+instance["multiply_f32"](0, 16, 32, 2);
+
+print_4(data, 0);
+print_4(data, 4);
+print_4(data, 8);
+
+/*
 print("Matrix size is " + N);
 
 init(data, N);
@@ -51,3 +67,4 @@ if (verify(data, N)) {
 } else {
   print("Verification failed");
 }
+*/
