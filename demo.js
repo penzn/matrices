@@ -1,12 +1,18 @@
-function init(arr, size) {
+function init_f32(arr, size) {
   for (let i = 0; i < (size*size); ++i) {
-    arr[i] = i % size;
+    arr[i] = i % size + 0.5;
   }
 }
 
-function verify(arr, size) {
+function init_i32(arr, size) {
   for (let i = 0; i < (size*size); ++i) {
-    if (arr[i] !== i % size) {
+    arr[i] = i % size + 1;
+  }
+}
+
+function verify_f32(arr, size) {
+  for (let i = 0; i < (size*size); ++i) {
+    if (arr[i] !== (i % size + 0.5)) {
       return false;
     }
   }
@@ -14,13 +20,13 @@ function verify(arr, size) {
 }
 
 function print_4(arr, off) {
-  print("2x2 data: ");
+  print("2x2: ");
   print(arr[off]     + " " + arr[off + 1]);
   print(arr[off + 2] + " " + arr[off + 3]);
 }
 
 function print_16(arr) {
-  print("4x4 data: ");
+  print("4x4: ");
   print(arr[0] + " " + arr[1] + " " + arr[2] + " " + arr[3]);
   print(arr[4] + " " + arr[5] + " " + arr[6] + " " + arr[7]);
   print(arr[8] + " " + arr[9] + " " + arr[10] + " " + arr[11]);
@@ -41,17 +47,18 @@ print("Need " + pages + " pages");
 const memObj = new WebAssembly.Memory({initial:pages});
 const module = new WebAssembly.Module(readbuffer('matrices.wasm'));
 const instance = new WebAssembly.Instance(module, { "dummy" : { "memory" : memObj } }).exports;
-let data = new Float32Array (memObj.buffer);
+let f32_data = new Float32Array (memObj.buffer);
+let i32_data = new Int32Array (memObj.buffer);
 
 print("Matrix size is " + N);
 
-init(data, N);
+init_f32(f32_data, N);
 // A*A
 for (let i = 0; i < (N * N); ++i) {
-  data[N * N + i] = data[i];
+  f32_data[N * N + i] = f32_data[i];
 }
 
-instance["transpose_f32"](4*N*N, N); // Second argument to column-major order
+instance["transpose_32"](4*N*N, N); // Second argument to column-major order
 
 var tStart = Date.now();
 instance["multiply_f32"](0, 4*N*N, 8*N*N, N);
@@ -65,4 +72,36 @@ var tEnd = Date.now();
 t = tEnd - tStart;
 
 print("SIMD multiplication took " + t + " ms at " + getGFLOPS(t, N) + " SP GFLOPS.");
+
+// Transpose test
+var tStart = Date.now();
+instance["test_transpose_32"](0, N, 500);
+var tEnd = Date.now();
+t = tEnd - tStart;
+print("Transpose took " + t + " ms");
+if (verify_f32(f32_data, N)) {
+  print("Verfication passed");
+} else {
+  print("Verfication failed");
+}
+
+init_i32(i32_data, N);
+// A*A
+for (let i = 0; i < (N * N); ++i) {
+  i32_data[N * N + i] = i32_data[i];
+}
+
+instance["transpose_32"](4*N*N, N); // Second argument to column-major order
+
+var tStart = Date.now();
+instance["multiply_i32"](0, 4*N*N, 8*N*N, N);
+var tEnd = Date.now();
+t = tEnd - tStart;
+print("Scalar integer multiplication took " + t + " ms");
+
+var tStart = Date.now();
+instance["multiply_i32_simd"](0, 4*N*N, 8*N*N, N);
+var tEnd = Date.now();
+t = tEnd - tStart;
+print("SIMD integer multiplication took " + t + " ms");
 

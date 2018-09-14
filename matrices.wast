@@ -5,7 +5,7 @@
     ;;
     ;; @param $ptr source and destination -- byte index
     ;; @param $sz size of the matrix (number of elements in a row)
-    (func
+    (func $tr
         (export "transpose_32")
         (param $ptr i32)
         (param $sz i32)
@@ -14,17 +14,30 @@
         (local $src_ptr i32)
         (local $dst_ptr i32)
 
-        (set_local $i (i32.const 0))
         (set_local $j (i32.const 0))
-        (set_local $src_ptr (get_local $ptr))
 
         (block $outer
             (loop $outer_top
-                (br_if $outer (i32.eq (get_local $j) (get_local $sz)))
-                (set_local $dst_ptr (i32.add (get_local $ptr) (i32.mul (get_local $j) (i32.const 4)))) ;; Start ptr is row index, TODO optimize mul
+                (br_if $outer (i32.eq (get_local $j) (i32.sub (get_local $sz) (i32.const 2))))
+                (set_local $i (i32.add (get_local $j) (i32.const 1)))
                 (block $inner
                     (loop $inner_top
-                        (br_if $inner (i32.eq (get_local $i) (get_local $sz)))
+                        (br_if $inner (i32.eq (get_local $i) (i32.sub (get_local $sz) (i32.const 1))))
+
+                        (set_local $src_ptr
+                            (i32.add (get_local $ptr)
+                                (i32.add (i32.mul (i32.const 4) (i32.mul (get_local $i) (get_local $sz)))
+                                    (i32.mul (i32.const 4) (get_local $j))
+                                )
+                            )
+                        )
+                        (set_local $dst_ptr
+                            (i32.add (get_local $ptr)
+                                (i32.add (i32.mul (i32.const 4) (i32.mul (get_local $j) (get_local $sz)))
+                                    (i32.mul (i32.const 4) (get_local $i))
+                                )
+                            )
+                        )
 
                         ;; TODO don't swap when i == j
 
@@ -37,8 +50,6 @@
                         i32.store offset=0 align=4
                         i32.store offset=0 align=4
 
-                        (set_local $dst_ptr (i32.add (get_local $dst_ptr) (i32.mul (i32.const 4) (get_local $sz)))) ;; TODO optimize mul
-                        (set_local $src_ptr (i32.add (get_local $src_ptr) (i32.const 4)))
                         (set_local $i (i32.add (get_local $i) (i32.const 1)))
                         (br $inner_top)
                     )
@@ -593,4 +604,29 @@
         )
     )
 
+    ;; Test harness for scalar transpose for 32-bit elements
+    ;;
+    ;; @param $ptr source and destination -- byte index
+    ;; @param $sz size of the matrix (number of elements in a row)
+    ;; @param $cnt how many times to perform the transposition
+    (func
+        (export "test_transpose_32")
+        (param $ptr i32)
+        (param $sz i32)
+        (param $cnt i32)
+        (local $i i32)
+
+        (set_local $i (i32.const 0))
+
+        (block $loop
+            (loop $loop_top
+                (br_if $loop (i32.eq (get_local $i) (get_local $cnt)))
+
+                (call $tr (get_local $ptr) (get_local $sz))
+
+                (set_local $i (i32.add (get_local $i) (i32.const 1)))
+                (br $loop_top)
+            )
+        )
+    )
 )
