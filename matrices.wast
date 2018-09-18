@@ -18,28 +18,26 @@
 
         (block $outer
             (loop $outer_top
-                (br_if $outer (i32.eq (get_local $j) (i32.sub (get_local $sz) (i32.const 2))))
+                (br_if $outer (i32.eq (get_local $j) (i32.sub (get_local $sz) (i32.const 1))))
                 (set_local $i (i32.add (get_local $j) (i32.const 1)))
                 (block $inner
                     (loop $inner_top
-                        (br_if $inner (i32.eq (get_local $i) (i32.sub (get_local $sz) (i32.const 1))))
+                        (br_if $inner (i32.eq (get_local $i) (get_local $sz)))
 
                         (set_local $src_ptr
                             (i32.add (get_local $ptr)
-                                (i32.add (i32.mul (i32.const 4) (i32.mul (get_local $i) (get_local $sz)))
-                                    (i32.mul (i32.const 4) (get_local $j))
+                                (i32.mul (i32.const 4)
+                                    (i32.add (i32.mul (get_local $i) (get_local $sz)) (get_local $j))
                                 )
                             )
                         )
                         (set_local $dst_ptr
                             (i32.add (get_local $ptr)
-                                (i32.add (i32.mul (i32.const 4) (i32.mul (get_local $j) (get_local $sz)))
-                                    (i32.mul (i32.const 4) (get_local $i))
+                                (i32.mul (i32.const 4)
+                                    (i32.add (i32.mul (get_local $j) (get_local $sz)) (get_local $i))
                                 )
                             )
                         )
-
-                        ;; TODO don't swap when i == j
 
                         get_local $dst_ptr
                         get_local $src_ptr
@@ -623,6 +621,242 @@
                 (br_if $loop (i32.eq (get_local $i) (get_local $cnt)))
 
                 (call $tr (get_local $ptr) (get_local $sz))
+
+                (set_local $i (i32.add (get_local $i) (i32.const 1)))
+                (br $loop_top)
+            )
+        )
+    )
+    ;; Swap 2x2 matrix
+    (func $swap
+        (param $a1 i32)
+        (param $a2 i32)
+        (param $b1 i32)
+        (param $b2 i32)
+
+    )
+    ;; SIMD transpose a square matrix (contiguous layout) of 32-bit elements in place
+    ;;
+    ;; @param $ptr source and destination -- byte index
+    ;; @param $sz size of the matrix (number of elements in a row)
+    (func $vtr
+        (export "simd_transpose_32")
+        (param $ptr i32)
+        (param $sz i32)
+        (local $i i32)
+        (local $j i32)
+        (local $src_ptr i32)
+        (local $dst_ptr i32)
+        (local $sz_norm i32)
+        (local $v v128)
+
+        (set_local $sz_norm (i32.mul (i32.const 2) (i32.div_u (get_local $sz) (i32.const 2))))
+        (set_local $j (i32.const 0))
+
+        (block $outer
+            (loop $outer_top
+                ;;(br_if $outer (i32.eq (get_local $j) (i32.sub (get_local $sz_norm) (i32.const 1))))
+                ;;(set_local $i (i32.add (get_local $j) (i32.const 1)))
+                (br_if $outer (i32.eq (get_local $j) (get_local $sz_norm)))
+                (set_local $i (get_local $j))
+                (block $inner
+                    (loop $inner_top
+                        ;; FIXME sometimes $i == $sz_norm at the beginning, would that affect execution?
+                        ;; FIXME and if that is a bug in the runtime, how to demonstrate that?
+                        (br_if $inner (i32.eq (get_local $i) (get_local $sz_norm)))
+
+                        (set_local $src_ptr
+                            (i32.add (get_local $ptr)
+                                (i32.mul (i32.const 4)
+                                    (i32.add (i32.mul (get_local $i) (get_local $sz)) (get_local $j))
+                                )
+                            )
+                        )
+
+                        ;; Tiles are handled differently based on whether they are on the diagonal or not
+                        (if (i32.eq (get_local $i) (get_local $j))
+                            (then
+                                get_local $src_ptr
+                                v128.load offset=0 align=4 ;; first line of the tile
+                                get_local $src_ptr
+                                get_local $sz
+                                i32.const 4
+                                i32.mul
+                                i32.add
+                                v128.load offset=0 align=4 ;; second line of the tile
+                                v8x16.shuffle 0x03020100 0x13121110 0x07060504 0x17161514 ;; Transposed tile inline
+                                ;;v8x16.shuffle 0x03020100 0x07060504 0x0B0A0908 0x0F0E0D0C
+                                set_local $v
+                            )
+                            (else
+                                (set_local $dst_ptr
+                                    (i32.add (get_local $ptr)
+                                        (i32.mul (i32.const 4)
+                                            (i32.add (i32.mul (get_local $j) (get_local $sz)) (get_local $i))
+                                        )
+                                    )
+                                )
+
+                                get_local $dst_ptr
+                                get_local $src_ptr
+                                i32.load offset=0 align=4
+                                get_local $src_ptr
+                                get_local $dst_ptr
+                                i32.load offset=0 align=4
+                                i32.store offset=0 align=4
+                                i32.store offset=0 align=4
+
+                            )
+                        )
+
+                        (set_local $i (i32.add (get_local $i) (i32.const 1)))
+                        (br $inner_top)
+                    )
+                )
+
+                ;; For odd sizes, we have one more element at the end
+                (block $onemore
+                    (br_if $onemore (i32.eq (get_local $sz) (get_local $sz_norm)))
+
+                    (set_local $src_ptr
+                        (i32.add (get_local $ptr)
+                            (i32.mul (i32.const 4)
+                                (i32.add (i32.mul (get_local $i) (get_local $sz)) (get_local $j))
+                            )
+                        )
+                    )
+                    (set_local $dst_ptr
+                        (i32.add (get_local $ptr)
+                            (i32.mul (i32.const 4)
+                                (i32.add (i32.mul (get_local $j) (get_local $sz)) (get_local $i))
+                            )
+                        )
+                    )
+
+                    get_local $dst_ptr
+                    get_local $src_ptr
+                    i32.load offset=0 align=4
+                    get_local $src_ptr
+                    get_local $dst_ptr
+                    i32.load offset=0 align=4
+                    i32.store offset=0 align=4
+                    i32.store offset=0 align=4
+                )
+
+                (set_local $j (i32.add (get_local $j) (i32.const 1)))
+                (br $outer_top)
+            )
+        )
+    )
+
+    ;; Vector transpose f32 2x2 matrix (contiguous layout) in place
+    ;; Load a vector of four f32 numbers from location indicated by $ptr
+    (func $vt2x2
+        (export  "simd_transpose_f32x2x2")
+        (param $ptr i32)
+
+        get_local $ptr
+        get_local $ptr
+        v128.load offset=0 align=4
+        v128.const i32 0 0 0 0
+        v8x16.shuffle 0x03020100 0x0B0A0908 0x07060504 0x0F0E0D0C
+        ;;v8x16.shuffle 0x03020100 0x07060504 0x0B0A0908 0x0F0E0D0C
+        v128.store offset=0 align=4
+    )
+    (func
+        (export "test_vec_transpose_2x2")
+        (param $ptr i32)
+        (param $cnt i32)
+        (local $i i32)
+
+        (set_local $i (i32.const 0))
+
+        (block $loop
+            (loop $loop_top
+                (br_if $loop (i32.eq (get_local $i) (get_local $cnt)))
+
+                (call $vt2x2 (get_local $ptr))
+
+                (set_local $i (i32.add (get_local $i) (i32.const 1)))
+                (br $loop_top)
+            )
+        )
+    )
+    ;; Vector transpose f32 4x4 matrix (contiguous layout) in place
+    ;; Load four f32x4 vectors from location indicated by first paramter and
+    ;; store transposed matrix at location indicated by second parameter
+    (func $vt4x4
+        (export  "simd_transpose_f32x4x4")
+        (param i32 i32)
+
+	;; Treat 4x4 as four 2x2 tiles -- transpose each one and then swap the
+        ;; two that don't occupy the diagonal
+
+        get_local 1
+        get_local 0
+        v128.load offset=0 align=4
+        get_local 0
+        v128.load offset=16 align=4
+        get_local 1
+        get_local 0
+        v128.load offset=0 align=4
+        get_local 0
+        v128.load offset=16 align=4
+        v8x16.shuffle 0x03020100 0x13121110 0x0B0A0908 0x1B1A1918
+        ;;v8x16.shuffle 0x03020100 0x07060504 0x0B0A0908 0x0F0E0D0C
+        v128.store offset=0 align=4
+        v8x16.shuffle 0x07060504 0x17161514 0x0F0E0D0C 0x1F1E1D1C
+        ;;v8x16.shuffle 0x03020100 0x07060504 0x0B0A0908 0x0F0E0D0C
+        v128.store offset=16 align=4
+
+        get_local 1
+        get_local 0
+        v128.load offset=32 align=4
+        get_local 0
+        v128.load offset=48 align=4
+        get_local 1
+        get_local 0
+        v128.load offset=32 align=4
+        get_local 0
+        v128.load offset=48 align=4
+        v8x16.shuffle 0x03020100 0x13121110 0x0B0A0908 0x1B1A1918
+        ;;v8x16.shuffle 0x03020100 0x07060504 0x0B0A0908 0x0F0E0D0C
+        v128.store offset=32 align=4
+        v8x16.shuffle 0x07060504 0x17161514 0x0F0E0D0C 0x1F1E1D1C
+        ;;v8x16.shuffle 0x03020100 0x07060504 0x0B0A0908 0x0F0E0D0C
+        v128.store offset=48 align=4
+
+        ;; Swap the tiles
+        get_local 1
+        get_local 0
+        i64.load offset=8 align=4
+        get_local 1
+        get_local 0
+        i64.load offset=32 align=4
+        i64.store offset=8 align=4
+        i64.store offset=32 align=4
+        get_local 1
+        get_local 0
+        i64.load offset=24 align=4
+        get_local 1
+        get_local 0
+        i64.load offset=48 align=4
+        i64.store offset=24 align=4
+        i64.store offset=48 align=4
+    )
+    (func
+        (export "test_vec_transpose_4x4")
+        (param $ptr i32)
+        (param $cnt i32)
+        (local $i i32)
+
+        (set_local $i (i32.const 0))
+
+        (block $loop
+            (loop $loop_top
+                (br_if $loop (i32.eq (get_local $i) (get_local $cnt)))
+
+                (call $vt4x4 (get_local $ptr) (get_local $ptr))
 
                 (set_local $i (i32.add (get_local $i) (i32.const 1)))
                 (br $loop_top)
