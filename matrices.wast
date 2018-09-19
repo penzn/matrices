@@ -686,7 +686,8 @@
                                 v128.load offset=0 align=4 ;; second line of the tile
                                 v8x16.shuffle 0x03020100 0x13121110 0x07060504 0x17161514 ;; Transposed tile inline
                                 ;;v8x16.shuffle 0x03020100 0x07060504 0x0B0A0908 0x0F0E0D0C
-                                set_local $v
+                                set_local $v ;; TODO
+                                ;; Would it be better to scalar traspose diagonal tiles?
                             )
                             (else
                                 (set_local $dst_ptr
@@ -782,12 +783,148 @@
             )
         )
     )
-    ;; Vector transpose f32 4x4 matrix (contiguous layout) in place
-    ;; Load four f32x4 vectors from location indicated by first paramter and
-    ;; store transposed matrix at location indicated by second parameter
+
+    ;; Vector transpose 32-bit 4x4 matrix in-place
+    ;;
+    ;; Parameters $a1-$a4 are pointers to rows of the matrix
+    (func $vt4x4ip
+        (export  "simd_transpose_32x4x4_inplace")
+        (param $a1 i32)
+        (param $a2 i32)
+        (param $a3 i32)
+        (param $a4 i32)
+        ;; four 2x2 tiles that make up the result
+        (local $v11 v128)
+        (local $v12 v128)
+        (local $v21 v128)
+        (local $v22 v128)
+
+        ;; Prepare tiles
+        ;; indexed like this:
+        ;; 0 1
+        ;; 2 3
+
+	get_local $a1
+        v128.load offset=0 align=4
+        get_local $a2
+        v128.load offset=0 align=4
+        v8x16.shuffle 0x13121110 0x03020100 0x17161514 0x07060504
+        set_local $v11
+
+	get_local $a1
+        v128.load offset=0 align=4
+        get_local $a2
+        v128.load offset=0 align=4
+        v8x16.shuffle 0x1B1A1918 0x0B0A0908 0x1F1E1D1C 0x0F0E0D0C
+        set_local $v21
+
+	get_local $a3
+        v128.load offset=0 align=4
+        get_local $a4
+        v128.load offset=0 align=4
+        v8x16.shuffle 0x13121110 0x03020100 0x17161514 0x07060504
+        set_local $v12
+
+	get_local $a3
+        v128.load offset=0 align=4
+        get_local $a4
+        v128.load offset=0 align=4
+        v8x16.shuffle 0x1B1A1918 0x0B0A0908 0x1F1E1D1C 0x0F0E0D0C
+        set_local $v22
+
+        ;; Prepare and store lines of the result
+
+        get_local $a1
+        get_local $v11
+        get_local $v12
+        v8x16.shuffle 0x13121110 0x07060504 0x03020100 0x07060504
+        v128.store offset=0 align=4
+
+        get_local $a2
+        get_local $v11
+        get_local $v12
+        v8x16.shuffle 0x1B1A1918 0x1F1E1D1C 0x0B0A0908 0x0F0E0D0C
+        v128.store offset=0 align=4
+
+        get_local $a3
+        get_local $v21
+        get_local $v22
+        v8x16.shuffle 0x13121110 0x07060504 0x03020100 0x07060504
+        v128.store offset=0 align=4
+
+        get_local $a4
+        get_local $v21
+        get_local $v22
+        v8x16.shuffle 0x1B1A1918 0x1F1E1D1C 0x0B0A0908 0x0F0E0D0C
+        v128.store offset=0 align=4
+    )
     (func $vt4x4
         (export  "simd_transpose_f32x4x4")
-        (param i32 i32)
+        (param i32 i32) ;; Transpose matrix expecting flat layout and swap the data between two pointers
+
+        (if (i32.eq (get_local 0) (get_local 1))
+            (then
+                (call $vt4x4ip
+                    (get_local 0)
+                    (i32.add (get_local 0) (i32.const 16))
+                    (i32.add (get_local 0) (i32.const 32))
+                    (i32.add (get_local 0) (i32.const 48))
+                )
+            )
+            (else
+                (call $vt4x4ip
+                    (get_local 0)
+                    (i32.add (get_local 0) (i32.const 16))
+                    (i32.add (get_local 0) (i32.const 32))
+                    (i32.add (get_local 0) (i32.const 48))
+                )
+                (call $vt4x4ip
+                    (get_local 1)
+                    (i32.add (get_local 1) (i32.const 16))
+                    (i32.add (get_local 1) (i32.const 32))
+                    (i32.add (get_local 1) (i32.const 48))
+                )
+
+                get_local 1
+                get_local 0
+                v128.load offset=0  align=4
+                get_local 1
+                get_local 0
+                v128.load offset=16 align=4
+                get_local 1
+                get_local 0
+                v128.load offset=32 align=4
+                get_local 1
+                get_local 0
+                v128.load offset=48 align=4
+
+                get_local 0
+                get_local 1
+                v128.load offset=0  align=4
+                get_local 0
+                get_local 1
+                v128.load offset=16 align=4
+                get_local 0
+                get_local 1
+                v128.load offset=32 align=4
+                get_local 0
+                get_local 1
+                v128.load offset=48 align=4
+
+                v128.store offset=0  align=4
+                v128.store offset=16 align=4
+                v128.store offset=32 align=4
+                v128.store offset=48 align=4
+                v128.store offset=0  align=4
+                v128.store offset=16 align=4
+                v128.store offset=32 align=4
+                v128.store offset=48 align=4
+            )
+        )
+    )
+    (func $vt4x4old
+        (export  "simd_transpose_f32x4x4old")
+        (param i32 i32) ;; Transpose matrix expecting flat layout and swap the data between two pointers
 
 	;; Treat 4x4 as four 2x2 tiles -- transpose each one and then swap the
         ;; two that don't occupy the diagonal
