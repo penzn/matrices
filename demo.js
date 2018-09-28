@@ -1,7 +1,35 @@
+// Convert a pair of integers to a float in a way that is unique for each distinct pair
+function p2f(x, y) {
+  var d;
+  for (d = 10; Math.floor(y/d); d = d * 10);
+  return x + y / d;
+}
+
 function init_f32(arr, size) {
   for (let i = 0; i < (size*size); ++i) {
     arr[i] = i % size + 0.5;
   }
+}
+
+function init_f32_unique(arr, size) {
+  for (let i = 0; i < size; ++i) {
+    for (let j = 0; j < size; ++j) {
+      arr[i * size + j] = p2f(i,j);
+    }
+  }
+}
+
+function verify_f32_unique(arr, size) {
+  for (let i = 0; i < size; ++i) {
+    for (let j = 0; j < size; ++j) {
+      if (arr[i * size + j] !== p2f(i,j)) {
+        print("Expected: ", p2f(i,j));
+        print("But got: ", arr[i*size+j]);
+        return false;
+      }
+    }
+  }
+  return true;
 }
 
 function init_i32(arr, size) {
@@ -33,6 +61,17 @@ function print_16(arr) {
   print(arr[12] + " " + arr[13] + " " + arr[14] + " " + arr[15]);
 }
 
+function print_arr(arr, size) {
+  print(size + "x" + size + ": ");
+  for (let i = 0; i < size; ++i) {
+    var line = "";
+    for (let j = 0; j < size; ++j) {
+      line = line + arr[size * i + j] + " ";
+    }
+    print(line);
+  }
+}
+
 // Calculate GFLOPS for running time (ms) and matrix size
 function getGFLOPS(ms, N) {
   // For every scalar there is a a multiplication and an addition, and there
@@ -53,6 +92,7 @@ let i32_data = new Int32Array (memObj.buffer);
 print("Matrix size is " + N);
 
 init_f32(f32_data, N);
+
 // A*A
 for (let i = 0; i < (N * N); ++i) {
   f32_data[N * N + i] = f32_data[i];
