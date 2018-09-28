@@ -808,28 +808,28 @@
         v128.load offset=0 align=4
         get_local $a2
         v128.load offset=0 align=4
-        v8x16.shuffle 0x13121110 0x03020100 0x17161514 0x07060504
+        v8x16.shuffle 0x03020100 0x07060504 0x13121110 0x17161514
         set_local $v11
 
 	get_local $a1
         v128.load offset=0 align=4
         get_local $a2
         v128.load offset=0 align=4
-        v8x16.shuffle 0x1B1A1918 0x0B0A0908 0x1F1E1D1C 0x0F0E0D0C
+        v8x16.shuffle 0x0B0A0908 0x0F0E0D0C 0x1B1A1918 0x1F1E1D1C
         set_local $v21
 
 	get_local $a3
         v128.load offset=0 align=4
         get_local $a4
         v128.load offset=0 align=4
-        v8x16.shuffle 0x13121110 0x03020100 0x17161514 0x07060504
+        v8x16.shuffle 0x03020100 0x07060504 0x13121110 0x17161514
         set_local $v12
 
 	get_local $a3
         v128.load offset=0 align=4
         get_local $a4
         v128.load offset=0 align=4
-        v8x16.shuffle 0x1B1A1918 0x0B0A0908 0x1F1E1D1C 0x0F0E0D0C
+        v8x16.shuffle 0x0B0A0908 0x0F0E0D0C 0x1B1A1918 0x1F1E1D1C
         set_local $v22
 
         ;; Prepare and store lines of the result
@@ -837,25 +837,25 @@
         get_local $a1
         get_local $v11
         get_local $v12
-        v8x16.shuffle 0x13121110 0x07060504 0x03020100 0x07060504
+        v8x16.shuffle 0x03020100 0x0B0A0908 0x13121110 0x1B1A1918
         v128.store offset=0 align=4
 
         get_local $a2
         get_local $v11
         get_local $v12
-        v8x16.shuffle 0x1B1A1918 0x1F1E1D1C 0x0B0A0908 0x0F0E0D0C
+        v8x16.shuffle 0x07060504 0x0F0E0D0C 0x17161514 0x1F1E1D1C
         v128.store offset=0 align=4
 
         get_local $a3
         get_local $v21
         get_local $v22
-        v8x16.shuffle 0x13121110 0x07060504 0x03020100 0x07060504
+        v8x16.shuffle 0x03020100 0x0B0A0908 0x13121110 0x1B1A1918
         v128.store offset=0 align=4
 
         get_local $a4
         get_local $v21
         get_local $v22
-        v8x16.shuffle 0x1B1A1918 0x1F1E1D1C 0x0B0A0908 0x0F0E0D0C
+        v8x16.shuffle 0x07060504 0x0F0E0D0C 0x17161514 0x1F1E1D1C
         v128.store offset=0 align=4
     )
     (func $vt4x4
@@ -993,7 +993,12 @@
             (loop $loop_top
                 (br_if $loop (i32.eq (get_local $i) (get_local $cnt)))
 
-                (call $vt4x4 (get_local $ptr) (get_local $ptr))
+                (call $vt4x4ip
+                    (get_local $ptr)
+                    (i32.add (i32.const 16) (get_local $ptr))
+                    (i32.add (i32.const 32) (get_local $ptr))
+                    (i32.add (i32.const 48) (get_local $ptr))
+                )
 
                 (set_local $i (i32.add (get_local $i) (i32.const 1)))
                 (br $loop_top)
